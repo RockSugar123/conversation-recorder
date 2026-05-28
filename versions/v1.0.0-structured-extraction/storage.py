@@ -1,0 +1,178 @@
+"""Markdown conversation storage — YYYY-MM/YYYY-MM-DD/HH-MM-SS-platform.md"""
+
+import re
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent / "conversations"
+
+
+def _sanitize(s: str) -> str:
+    return re.sub(r"[\\/:*?\"<>|]", "_", s)
+
+
+def _format_message(msg: dict) -> str:
+    role_label = "用户" if msg.get("role") == "user" else "AI"
+    ts = msg.get("timestamp", "")
+    time_str = ""
+    if ts:
+        try:
+            dt = datetime.fromisoformat(ts)
+            time_str = f" - {dt.strftime('%H:%M:%S')}"
+        except (ValueError, TypeError):
+            time_str = f" - {ts}"
+
+    lines = [f"### {role_label}{time_str}", "", msg.get("content", ""), ""]
+
+    inline_citations = msg.get("inlineCitations", [])
+    if inline_citations:
+        lines.append("**正文引用链接：**")
+        for c in inline_citations:
+            label = c.get("label") or c.get("title") or c.get("url", "")
+            url = c.get("url", "")
+            context = c.get("context", "")
+            suffix = f" - {context}" if context else ""
+            if url:
+                lines.append(f"- [{label}]({url}){suffix}")
+            else:
+                lines.append(f"- {label}{suffix}")
+        lines.append("")
+
+    refs = msg.get("references", [])
+    if refs:
+        lines.append("**参考资料链接：**")
+        for r in refs:
+            title = r.get("title", r.get("url", ""))
+            url = r.get("url", "")
+            if url:
+                lines.append(f"- [{title}]({url})")
+            else:
+                lines.append(f"- {title}")
+        lines.append("")
+
+    suggested_questions = msg.get("suggestedQuestions", [])
+    if suggested_questions:
+        lines.append("**你可能还想问：**")
+        for question in suggested_questions:
+            lines.append(f"- {question}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def save_conversation(
+    *,
+    platform: str = "",
+    url: str = "",
+    title: str = "",
+    messages: list[dict],
+    timestamp: str | None = None,
+) -> Path:
+    """Save a single conversation to its own markdown file under a date folder."""
+    if timestamp:
+        dt = datetime.fromisoformat(timestamp)
+    else:
+        dt = datetime.now()
+
+    date_str = dt.strftime("%Y-%m-%d")
+    month_dir = dt.strftime("%Y-%m")
+    time_str = dt.strftime("%H-%M-%S")
+    safe_platform = _sanitize(platform) if platform else "unknown"
+
+    day_dir = ROOT / month_dir / date_str
+    day_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{time_str}-{safe_platform}.md"
+    file_path = day_dir / filename
+
+    # If file already exists (same second), append a counter
+    counter = 1
+    while file_path.exists():
+        filename = f"{time_str}-{safe_platform}-{counter}.md"
+        file_path = day_dir / filename
+        counter += 1
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        header_title = _sanitize(title or platform or "对话")
+        header = f"# {header_title} - {date_str} {dt.strftime('%H:%M:%S')}\n"
+        if url:
+            header += f"来源: {url}\n"
+        if platform:
+            header += f"平台: {platform}\n"
+        if title:
+            header += f"题目: {title}\n"
+        f.write(header + "\n")
+
+        for msg in messages:
+            f.write(_format_message(msg))
+
+    return file_path
+
+
+def get_conversation(date_str: str, filename: str) -> str | None:
+    """Read a specific conversation file."""
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return None
+    month_dir = dt.strftime("%Y-%m")
+    file_path = ROOT / month_dir / date_str / filename
+    if not file_path.exists():
+        return None
+    return file_path.read_text(encoding="utf-8")
+
+
+def list_conversations(date_str: str) -> list[dict]:
+    """List all conversations for a given date. Returns metadata for each file."""
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return []
+    month_dir = dt.strftime("%Y-%m")
+    day_dir = ROOT / month_dir / date_str
+    if not day_dir.exists():
+        return []
+
+    result = []
+    for f in sorted(day_dir.glob("*.md"), reverse=True):
+        content = f.read_text(encoding="utf-8")
+        # Extract a preview from the first user message
+        preview = ""
+        lines = content.split("\n")
+        in_user_msg = False
+        for line in lines:
+            if line.startswith("### 用户"):
+                in_user_msg = True
+                continue
+            if in_user_msg and line.startswith("### "):
+                break
+            if in_user_msg and line.strip():
+                preview = line.strip()[:120]
+                break
+        if not preview:
+            # Fallback: take first non-header, non-empty line
+            for line in lines:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#") and not stripped.startswith("来源"):
+                    preview = stripped[:120]
+                    break
+
+        result.append({
+            "filename": f.name,
+            "preview": preview,
+        })
+
+    return result
+
+
+def list_dates() -> list[str]:
+    """Return all dates that have conversations, newest first."""
+    if not ROOT.exists():
+        return []
+    dates = set()
+    for month_dir in ROOT.iterdir():
+        if month_dir.is_dir():
+            for day_dir in month_dir.iterdir():
+                if day_dir.is_dir() and list(day_dir.glob("*.md")):
+                    dates.add(day_dir.name)
+    return sorted(dates, reverse=True)

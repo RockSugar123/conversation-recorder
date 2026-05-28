@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 对话记录</title>
+<style>
+  :root {
+    --bg: #fafafa; --card-bg: #fff;
+    --text: #1a1a1a; --text-secondary: #666;
+    --border: #e5e5e5; --accent: #2563eb; --accent-hover: #1d4ed8;
+    --highlight: #fef08a; --radius: 8px; --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0f0f; --card-bg: #1a1a1a;
+      --text: #eee; --text-secondary: #999;
+      --border: #333; --accent: #3b82f6; --accent-hover: #60a5fa;
+      --highlight: #854d0e;
+    }
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; display: flex;
+  }
+
+  /* Sidebar */
+  aside {
+    width: 260px; min-width: 260px; height: 100vh;
+    position: sticky; top: 0;
+    border-right: 1px solid var(--border); background: var(--card-bg);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  aside h2 { padding: 20px 20px 12px; font-size: 17px; letter-spacing: -0.3px; }
+  aside .nav-section { padding: 0 12px 6px; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+  aside .list { flex: 1; overflow-y: auto; padding: 0 12px 12px; }
+  aside .list a {
+    display: block; padding: 7px 12px; border-radius: 6px; cursor: pointer;
+    font-size: 14px; color: var(--text-secondary); text-decoration: none;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  aside .list a:hover { background: var(--border); color: var(--text); }
+  aside .list a.active { background: var(--accent); color: #fff; }
+
+  /* Main */
+  main {
+    flex: 1; max-width: 900px; padding: 28px 36px;
+    overflow-y: auto; height: 100vh;
+  }
+  .search-bar { display: flex; gap: 10px; margin-bottom: 24px; }
+  .search-bar input {
+    flex: 1; padding: 10px 16px; border: 1px solid var(--border);
+    border-radius: var(--radius); font-size: 15px;
+    background: var(--card-bg); color: var(--text); outline: none;
+  }
+  .search-bar input:focus { border-color: var(--accent); }
+  .search-bar button {
+    padding: 10px 20px; background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius); font-size: 15px; cursor: pointer;
+  }
+  .search-bar button:hover { background: var(--accent-hover); }
+
+  /* Content pane */
+  .content-pane {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 28px 32px;
+    min-height: 300px; line-height: 1.75;
+    word-wrap: break-word; overflow-wrap: break-word;
+  }
+  .content-pane h1 { font-size: 20px; margin-bottom: 16px; }
+  .content-pane h2 { font-size: 16px; margin: 18px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .content-pane h3 { font-size: 14px; margin: 14px 0 4px; color: var(--text-secondary); }
+  .content-pane p { margin: 6px 0; }
+  .content-pane a { color: var(--accent); word-break: break-all; }
+  .content-pane em { background: var(--highlight); font-style: normal; padding: 1px 4px; border-radius: 3px; }
+  .content-pane hr { border: none; border-top: 1px dashed var(--border); margin: 14px 0; }
+  .content-pane ul { padding-left: 20px; margin: 8px 0; }
+  .content-pane li { margin: 4px 0; }
+
+  .empty-state {
+    display: flex; align-items: center; justify-content: center;
+    height: 260px; color: var(--text-secondary); font-size: 15px;
+  }
+
+  /* Conversation list items */
+  .conv-item {
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .conv-item:hover { background: var(--bg); margin: 0 -16px; padding: 14px 16px; border-radius: 6px; }
+  .conv-item .conv-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  .conv-item .conv-preview { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .back-link { display: inline-block; margin-bottom: 14px; color: var(--accent); cursor: pointer; font-size: 14px; }
+
+  /* Search results */
+  .search-result {
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .search-result:hover { background: var(--bg); margin: 0 -10px; padding: 14px 10px; border-radius: 6px; }
+  .search-result .date-badge { display: inline-block; background: var(--accent); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; }
+  .search-result .snippet { font-size: 14px; color: var(--text-secondary); }
+  .search-result .snippet em { background: var(--highlight); font-style: normal; }
+
+  .pagination { display: flex; gap: 8px; margin-top: 16px; justify-content: center; }
+  .pagination button { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); color: var(--text); cursor: pointer; font-size: 14px; }
+  .pagination button:disabled { opacity: 0.4; cursor: default; }
+  .pagination button:hover:not(:disabled) { border-color: var(--accent); }
+  .pagination .current { background: var(--accent); color: #fff; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<aside>
+  <h2>AI 对话记录</h2>
+  <div class="nav-section">日期</div>
+  <div class="list" id="dateList"></div>
+</aside>
+
+<main>
+  <div class="search-bar">
+    <input id="searchInput" type="text" placeholder="搜索对话内容..." autofocus>
+    <button id="searchBtn">搜索</button>
+  </div>
+  <div class="content-pane" id="contentPane">
+    <div class="empty-state">选择一个日期查看对话，或使用搜索</div>
+  </div>
+  <div class="pagination" id="pagination" style="display:none;"></div>
+</main>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => document.querySelectorAll(s);
+
+  let currentView = null; // { type: "date"|"conv"|"search", ... }
+
+  // ---- Date sidebar ----
+
+  async function loadDates() {
+    const res = await fetch("/api/dates");
+    const dates = await res.json();
+    const html = dates.map(d =>
+      `<a class="date-item" data-date="${d}">${d}</a>`
+    ).join("");
+    $("#dateList").innerHTML = html;
+    $$(".date-item").forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        viewDate(el.dataset.date);
+      });
+    });
+  }
+
+  // ---- Views ----
+
+  async function viewDate(date) {
+    currentView = { type: "date", date };
+    $("#searchInput").value = "";
+    $("#pagination").style.display = "none";
+    $$(".date-item").forEach(el => el.classList.remove("active"));
+    $(`.date-item[data-date="${date}"]`)?.classList.add("active");
+
+    const res = await fetch(`/api/conversations/${date}`);
+    const convs = await res.json();
+
+    if (convs.length === 0) {
+      $("#contentPane").innerHTML = '<div class="empty-state">此日期下暂无对话</div>';
+      return;
+    }
+
+    let html = `<h2>${date} — ${convs.length} 个对话</h2>`;
+    for (const c of convs) {
+      html += `
+        <div class="conv-item" data-date="${date}" data-file="${encodeURIComponent(c.filename)}">
+          <div class="conv-title">${escapeHtml(c.filename.replace('.md', ''))}</div>
+          <div class="conv-preview">${escapeHtml(c.preview || '无预览')}</div>
+        </div>`;
+    }
+    $("#contentPane").innerHTML = html;
+
+    $$(".conv-item").forEach(el => {
+      el.addEventListener("click", () => viewConversation(el.dataset.date, decodeURIComponent(el.dataset.file)));
+    });
+  }
+
+  async function viewConversation(date, filename) {
+    currentView = { type: "conv", date, filename };
+    $("#pagination").style.display = "none";
+
+    const res = await fetch(`/api/conversation/${date}/${encodeURIComponent(filename)}`);
+    if (!res.ok) {
+      $("#contentPane").innerHTML = '<div class="empty-state">加载失败</div>';
+      return;
+    }
+    const data = await res.json();
+
+    let html = `<a class="back-link" data-date="${date}">< 返回 ${date}</a>`;
+    html += renderMarkdown(data.content);
+    $("#contentPane").innerHTML = html;
+
+    $$(".back-link").forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        viewDate(el.dataset.date);
+      });
+    });
+  }
+
+  // ---- Markdown renderer ----
+
+  function renderMarkdown(md) {
+    let html = md
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    html = html.replace(/^#### (.+)$/gm, "<h4>$1</h4>");
+    html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+    html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+    html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    html = html.replace(/^---$/gm, "<hr>");
+    html = html.replace(/^- (.+)$/gm, "<li>$1</li>");
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, "<ul>$&</ul>");
+    html = html.replace(/^(?!<[hH1-6uo/]|<hr|<li|<ul)(.+)$/gm, "<p>$1</p>");
+    html = html.replace(/<p>\s*<\/p>/g, "");
+    return html;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ---- Search ----
+
+  async function doSearch(page = 1) {
+    const q = $("#searchInput").value.trim();
+    if (!q) return;
+    currentView = { type: "search", q, page };
+    $$(".date-item").forEach(el => el.classList.remove("active"));
+
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&page=${page}`);
+    const data = await res.json();
+
+    if (data.results.length === 0) {
+      $("#contentPane").innerHTML = '<div class="empty-state">没有找到匹配的对话</div>';
+      $("#pagination").style.display = "none";
+      return;
+    }
+
+    let html = `<h2>搜索: "${escapeHtml(q)}" (${data.total} 条)</h2>`;
+    for (const r of data.results) {
+      html += `
+        <div class="search-result" data-date="${r.date}" data-file="${encodeURIComponent(r.filename)}">
+          <span class="date-badge">${r.date}</span>
+          <div class="snippet">${r.snippet}</div>
+        </div>`;
+    }
+    $("#contentPane").innerHTML = html;
+
+    $$(".search-result").forEach(el => {
+      el.addEventListener("click", () => viewConversation(el.dataset.date, decodeURIComponent(el.dataset.file)));
+    });
+
+    if (data.pages > 1) {
+      let ph = "";
+      ph += `<button ${page <= 1 ? "disabled" : ""} data-pg="${page-1}">上一页</button>`;
+      for (let p = 1; p <= data.pages; p++) {
+        ph += `<button class="${p === page ? 'current' : ''}" data-pg="${p}">${p}</button>`;
+      }
+      ph += `<button ${page >= data.pages ? "disabled" : ""} data-pg="${page+1}">下一页</button>`;
+      $("#pagination").innerHTML = ph;
+      $("#pagination").style.display = "flex";
+      $$("#pagination button").forEach(btn => {
+        btn.addEventListener("click", () => doSearch(parseInt(btn.dataset.pg)));
+      });
+    } else {
+      $("#pagination").style.display = "none";
+    }
+  }
+
+  $("#searchBtn").addEventListener("click", () => doSearch(1));
+  $("#searchInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doSearch(1);
+  });
+
+  loadDates();
+</script>
+</body>
+</html>
