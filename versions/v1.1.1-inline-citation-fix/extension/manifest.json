@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Conversation Recorder",
-  "version": "1.1.2",
+  "version": "1.1.0",
   "description": "自动捕获网页 AI 对话并保存为本地 Markdown 文件",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],

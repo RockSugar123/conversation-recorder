@@ -563,22 +563,6 @@
       suggestedQuestions: messages.reduce((sum, m) => sum + (m.suggestedQuestions?.length || 0), 0),
     });
 
-    for (const msg of messages) {
-      if (msg.role !== "assistant") continue;
-      console.group("%c[AI Recorder] References", "color: blue; font-weight: bold");
-      for (const ref of msg.references || []) {
-        console.log("source: %s | title: %s", ref.source || "(empty)", (ref.title || "").slice(0, 60));
-        console.log("  url: %s", ref.url);
-      }
-      console.groupEnd();
-      console.group("%c[AI Recorder] Inline Citations", "color: green; font-weight: bold");
-      for (const cit of msg.inlineCitations || []) {
-        console.log("label: %s | url: %s", cit.label, cit.url || "(no match)");
-        console.log("  context: %s", cit.context || "(empty)");
-      }
-      console.groupEnd();
-    }
-
     fetch(`${SERVER_URL}/api/conversation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -616,34 +600,6 @@
     }
     return true;
   });
-
-  window.__aiRecorderDebug = function () {
-    const assistants = extractAssistantMessages();
-    for (const m of assistants) {
-      console.group("%c=== REFERENCES ===", "color: blue; font-weight: bold");
-      for (const ref of m.references) {
-        console.log(
-          "source: %s | title: %s",
-          ref.source || "(empty)",
-          (ref.title || "").slice(0, 60)
-        );
-        console.log("  url: %s", ref.url);
-        console.log("  summary: %s", (ref.summaryText || "").slice(0, 80));
-      }
-      console.groupEnd();
-      console.group("%c=== INLINE CITATIONS ===", "color: green; font-weight: bold");
-      for (const cit of m.inlineCitations) {
-        console.log(
-          "label: %s | matched_url: %s",
-          cit.label,
-          cit.url || "(no match)"
-        );
-        console.log("  context: %s", cit.context);
-      }
-      console.groupEnd();
-    }
-    return assistants;
-  };
 
   console.log("[AI Recorder] Ready on", window.location.href);
 })();
