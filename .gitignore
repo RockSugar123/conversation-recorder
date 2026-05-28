@@ -1,0 +1,4 @@
+__pycache__/
+.whoosh_index/
+consle.txt
+server/conversations/
